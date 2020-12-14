@@ -46,10 +46,7 @@ When EF receives a LINQ query tree for execution, it must first "compile" that t
 
 Consider the following two queries:
 
-```csharp
-var blog1 = ctx.Blogs.FirstOrDefault(b => b.Name == "blog1");
-var blog2 = ctx.Blogs.FirstOrDefault(b => b.Name == "blog2");
-```
+[!code-csharp[Main](../../../samples/core/Performance/Program.cs#QueriesWithConstants)]
 
 Since the expression trees contains different constants, the expression tree differs and each of these queries will be compiled separately by EF Core. In addition, each query produces a slightly different SQL command:
 
@@ -67,12 +64,7 @@ Because the SQL differs, your database server will likely also need to produce a
 
 A small modification to your queries can change things considerably:
 
-```csharp
-var blogName = "blog1";
-var blog1 = ctx.Blogs.FirstOrDefault(b => b.Name == blogName);
-blogName = "blog2";
-var blog2 = ctx.Blogs.FirstOrDefault(b => b.Name == blogName);
-```
+[!code-csharp[Main](../../../samples/core/Performance/Program.cs#QueriesWithParameterization)]
 
 Since the blog name is now *parameterized*, both queries have the same tree shape, and EF only needs to be compiled once. The SQL produced is also parameterized, allowing the database to reuse the same query plan:
 

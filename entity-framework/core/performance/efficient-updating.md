@@ -11,13 +11,7 @@ uid: core/performance/efficient-updating
 
 EF Core helps minimize roundtrips by automatically batching together all updates in a single roundtrip. Consider the following:
 
-```csharp
-var blog = context.Blogs.Single(b => b.Name == "EF Core Blog");
-blog.Url = "http://some.new.website";
-context.Add(new Blog { Name = "Another blog"});
-context.Add(new Blog { Name = "Yet another blog"});
-context.SaveChanges();
-```
+[!code-csharp[Main](../../../samples/core/Performance/Program.cs#SaveChangesBatching)]
 
 The above loads a blog from the database, changes its name, and then adds two new blogs; to apply this, two SQL INSERT statements and one UPDATE statement are sent to the database. Rather than sending them one by one, as Blog instances are added, EF Core tracks these changes internally, and executes them in a single roundtrip when <xref:Microsoft.EntityFrameworkCore.DbContext.SaveChanges%2A> is called.
 
@@ -25,24 +19,13 @@ The number of statements that EF batches in a single roundtrip depends on the da
 
 Users can also tweak these thresholds to achieve potentially higher performance - but benchmark carefully before modifying these:
 
-```csharp
-protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    => optionsBuilder.UseSqlServer(@"...", o => o
-        .MinBatchSize(1)
-        .MaxBatchSize(100))
-```
+[!code-csharp[Main](../../../samples/core/Performance/BatchTweakingContext.cs#BatchTweaking)]
 
 ## Bulk updates
 
-Let's assume you want to give all Employees of a certain department a raise. A typical implementation for this in EF Core would look like the following
+Let's assume you want to give all your employees a raise. A typical implementation for this in EF Core would look like the following:
 
-```csharp
-foreach (var employee in context.Employees.Where(e => e.Department.Id == 10))
-{
-    employee.Salary += 1000;
-}
-context.SaveChanges();
-```
+[!code-csharp[Main](../../../samples/core/Performance/Program.cs#UpdateWithoutBulk)]
 
 While this is perfectly valid code, let's analyze what it does from a performance perspective:
 
@@ -53,13 +36,11 @@ While this is perfectly valid code, let's analyze what it does from a performanc
 Relational databases also support *bulk updates*, so the above could be rewritten as the following single SQL statement:
 
 ```sql
-UPDATE [Employees] SET [Salary] = [Salary] + 1000 WHERE [DepartmentId] = 10;
+UPDATE [Employees] SET [Salary] = [Salary] + 1000;
 ```
 
-This performs the entire operation in a single roundtrip, without loading or sending any actual data to the database, and without making use of EF's change tracking machinery, which does have an overhead cost.
+This performs the entire operation in a single roundtrip, without loading or sending any actual data to the database, and without making use of EF's change tracking machinery, which imposes an additional overhead.
 
 Unfortunately, EF doesn't currently provide APIs for performing bulk updates. Until these are introduced, you can use raw SQL to perform the operation where performance is sensitive:
 
-```csharp
-context.Database.ExecuteSqlRaw("UPDATE [Employees] SET [Salary] = [Salary] + 1000 WHERE [DepartmentId] = {0}", departmentId);
-```
+[!code-csharp[Main](../../../samples/core/Performance/Program.cs#UpdateWithBulk)]

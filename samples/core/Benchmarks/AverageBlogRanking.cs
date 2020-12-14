@@ -22,7 +22,7 @@ namespace Benchmarks
             context.SeedData();
         }
 
-        #region Benchmarks
+        #region LoadEntities
         [Benchmark]
         public double LoadEntities()
         {
@@ -37,9 +37,11 @@ namespace Benchmarks
 
             return sum / count;
         }
+        #endregion
 
+        #region LoadEntitiesNoTracking
         [Benchmark]
-        public double LoadEntitiesNonTracking()
+        public double LoadEntitiesNoTracking()
         {
             var sum = 0;
             var count = 0;
@@ -52,7 +54,9 @@ namespace Benchmarks
 
             return sum / count;
         }
+        #endregion
 
+        #region ProjectOnlyRanking
         [Benchmark]
         public double ProjectOnlyRanking()
         {
@@ -67,14 +71,16 @@ namespace Benchmarks
 
             return sum / count;
         }
+        #endregion
 
+        #region CalculateInDatabase
         [Benchmark(Baseline = true)]
         public double CalculateInDatabase()
         {
             using var ctx = new BloggingContext();
             return ctx.Blogs.Average(b => b.Rating);
         }
-        #endregion Benchmarks
+        #endregion
 
         public class BloggingContext : DbContext
         {

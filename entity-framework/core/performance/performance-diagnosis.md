@@ -17,32 +17,11 @@ EF makes it very easy to capture command execution times, via either [simple log
 
 ### [Simple logging](#tab/simple-logging)
 
-```csharp
-class MyDbContext
-{
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        optionsBuilder
-            .UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Blogging;Integrated Security=True")
-            .LogTo(Console.WriteLine, LogLevel.Information);
-    }
-}
-```
+[!code-csharp[Main](../../../samples/core/Performance/BloggingContext.cs#SimpleLogging)]
 
 ### [Microsoft.Extensions.Logging](#tab/microsoft-extensions-logging)
 
-```csharp
-class MyDbContext
-{
-    static ILoggerFactory ContextLoggerFactory
-        => LoggerFactory.Create(b => b.AddConsole().AddFilter("", LogLevel.Information));
-
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        => optionsBuilder
-            .UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Blogging;Integrated Security=True")
-            .UseLoggerFactory(ContextLoggerFactory);
-}
-```
+[!code-csharp[Main](../../../samples/core/Performance/ExtensionsLoggingContext.cs#ExtensionsLogging)]
 
 ***
 
@@ -65,23 +44,16 @@ The above command took 4 milliseconds. If a certain command takes more than expe
 
 One problem with command execution logging is that it's sometimes difficult to correlate SQL queries and LINQ queries: the SQL commands executed by EF can look very different from the LINQ queries from which they were generated. To help with this difficulty, you may want to use EF's [query tags](xref:core/querying/tags) feature, which allows you to inject a small, identifying comment into the SQL query:
 
-```csharp
-var blogs = ctx.Blogs
-    .TagWith("GetBlogByName")
-    .Where(b => b.Name == "foo")
-    .ToList();
-```
+[!code-csharp[Main](../../../samples/core/Querying/Tags/Program.cs#BasicQueryTag)]
 
 The tag shows up in the logs:
 
-```csharp
-info: 06/12/2020 09:25:42.951 RelationalEventId.CommandExecuted[20101] (Microsoft.EntityFrameworkCore.Database.Command)
-      Executed DbCommand (4ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
-      -- GetBlogByName
+```sql
+-- This is my spatial query!
 
-      SELECT [b].[Id], [b].[Name]
-      FROM [Blogs] AS [b]
-      WHERE [b].[Name] = N'foo'
+SELECT TOP(@__p_1) [p].[Id], [p].[Location]
+FROM [People] AS [p]
+ORDER BY [p].[Location].STDistance(@__myLocation_0) DESC
 ```
 
 It's often worth tagging the major queries of an application in this way, to make the command execution logs more immediately readable.
@@ -129,18 +101,34 @@ As a simple benchmark scenario, let's compare the following different methods of
 * Avoid loading the entire Blog entity instances at all, by projecting out the ranking only. The saves us from transferring the other, unneeded columns of the Blog entity type.
 * Calculate the average in the database by making it part of the query. This should be the fastest way, since everything is calculated in the database and only the result is transferred back to the client.
 
-With BenchmarkDotNet, you write the code to be benchmarked as a simple method - just like a unit test - and BenchmarkDotNet automatically runs each method for sufficient number of iterations, reliably measuring how long it takes and how much memory is allocated. Here's the benchmark code:
+With BenchmarkDotNet, you write the code to be benchmarked as a simple method - just like a unit test - and BenchmarkDotNet automatically runs each method for sufficient number of iterations, reliably measuring how long it takes and how much memory is allocated. Here are the different method ([the full benchmark code can be seen here](https://github.com/dotnet/EntityFramework.Docs/tree/master/samples/core/Benchmarks/AverageBlogRanking.cs)):
 
-[!code-csharp[Main](../../../samples/core/Benchmarks/AverageBlogRanking.cs?name=Benchmarks)]
+### [Load entities](#tab/load-entities)
+
+[!code-csharp[Main](../../../samples/core/Benchmarks/AverageBlogRanking.cs?name=LoadEntities)]
+
+### [Load entities, no tracking](#tab/load-entities-no-tracking)
+
+[!code-csharp[Main](../../../samples/core/Benchmarks/AverageBlogRanking.cs?name=LoadEntitiesNoTracking)]
+
+### [Project only ranking](#tab/project-only-ranking)
+
+[!code-csharp[Main](../../../samples/core/Benchmarks/AverageBlogRanking.cs?name=ProjectOnlyRanking)]
+
+### [Calculate in database](#tab/calculate-in-database)
+
+[!code-csharp[Main](../../../samples/core/Benchmarks/AverageBlogRanking.cs?name=CalculateInDatabase)]
+
+***
 
 The results are below, as printed by BenchmarkDotNet:
 
-|                  Method |       Mean |    Error |   StdDev |     Median | Ratio | RatioSD |    Gen 0 |   Gen 1 | Gen 2 |  Allocated |
-|------------------------ |-----------:|---------:|---------:|-----------:|------:|--------:|---------:|--------:|------:|-----------:|
-|            LoadEntities | 2,860.4 us | 54.31 us | 93.68 us | 2,844.5 us |  4.55 |    0.33 | 210.9375 | 70.3125 |     - | 1309.56 KB |
-| LoadEntitiesNonTracking | 1,353.0 us | 21.26 us | 18.85 us | 1,355.6 us |  2.10 |    0.14 |  87.8906 |  3.9063 |     - |  540.09 KB |
-|      ProjectOnlyRanking |   910.9 us | 20.91 us | 61.65 us |   892.9 us |  1.46 |    0.14 |  41.0156 |  0.9766 |     - |  252.08 KB |
-|     CalculateInDatabase |   627.1 us | 14.58 us | 42.54 us |   626.4 us |  1.00 |    0.00 |   4.8828 |       - |     - |   33.27 KB |
+|                 Method |       Mean |    Error |   StdDev |     Median | Ratio | RatioSD |    Gen 0 |   Gen 1 | Gen 2 |  Allocated |
+|----------------------- |-----------:|---------:|---------:|-----------:|------:|--------:|---------:|--------:|------:|-----------:|
+|           LoadEntities | 2,860.4 us | 54.31 us | 93.68 us | 2,844.5 us |  4.55 |    0.33 | 210.9375 | 70.3125 |     - | 1309.56 KB |
+| LoadEntitiesNoTracking | 1,353.0 us | 21.26 us | 18.85 us | 1,355.6 us |  2.10 |    0.14 |  87.8906 |  3.9063 |     - |  540.09 KB |
+|     ProjectOnlyRanking |   910.9 us | 20.91 us | 61.65 us |   892.9 us |  1.46 |    0.14 |  41.0156 |  0.9766 |     - |  252.08 KB |
+|    CalculateInDatabase |   627.1 us | 14.58 us | 42.54 us |   626.4 us |  1.00 |    0.00 |   4.8828 |       - |     - |   33.27 KB |
 
 > [!NOTE]
 > As the methods instantiate and dispose the context within the method, these operations are counted for the benchmark, although strictly speaking they are not part of the querying process. This should not matter if the goal is to compare two alternatives to one another (since the context instantiation and disposal are the same), and gives a more holistic measurement for the entire operation.
