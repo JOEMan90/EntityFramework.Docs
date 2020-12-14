@@ -263,7 +263,7 @@
         href: core/performance/performance-diagnosis.md
       - name: Efficient querying
         href: core/performance/efficient-querying.md
-      - name: Updating data efficiently
+      - name: Efficient updating
         href: core/performance/efficient-updating.md
       - name: Modeling for performance
         href: core/performance/modeling-for-performance.md

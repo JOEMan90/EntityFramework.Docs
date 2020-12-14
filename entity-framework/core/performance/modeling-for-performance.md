@@ -57,4 +57,4 @@ For a concrete example, [see this benchmark](https://github.com/dotnet/EntityFra
 |    TPH | 132.3 ms | 2.29 ms | 2.03 ms | 8000.0000 | 3000.0000 | 1250.0000 |  44.49 MB |
 |    TPT | 201.3 ms | 3.32 ms | 3.10 ms | 9000.0000 | 4000.0000 |         - |  61.84 MB |
 
-As can be seen, TPH is considerably more efficient than TPT. Note that actual results always depend on the specific query being executed, so other queries may show a different performance gap; you're encouraged to use this benchmark code as a template for testing other queries.
+As can be seen, TPH is considerably more efficient than TPT for this scenario. Note that actual results always depend on the specific query being executed and the number of tables in the hierarchy, so other queries may show a different performance gap; you're encouraged to use this benchmark code as a template for testing other queries.

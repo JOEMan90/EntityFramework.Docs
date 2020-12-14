@@ -12,10 +12,10 @@ namespace Benchmarks
     [MemoryDiagnoser]
     public class QueryTrackingBehavior
     {
-        [Params(1)]
+        [Params(10)]
         public int NumBlogs { get; set; }
 
-        [Params(5000)]
+        [Params(20)]
         public int NumPostsPerBlog { get; set; }
 
         [GlobalSetup]
@@ -29,28 +29,20 @@ namespace Benchmarks
             Console.WriteLine("Setup complete.");
         }
 
-        [Benchmark]
-        public List<Post> Tracking()
+        [Benchmark(Baseline = true)]
+        public List<Post> AsTracking()
         {
             using var context = new BloggingContext();
 
-            return context.Posts.Include(p => p.Blog).ToList();
+            return context.Posts.AsTracking().Include(p => p.Blog).ToList();
         }
 
         [Benchmark]
-        public List<Post> NoTracking()
+        public List<Post> AsNoTracking()
         {
             using var context = new BloggingContext();
 
             return context.Posts.AsNoTracking().Include(p => p.Blog).ToList();
-        }
-
-        [Benchmark]
-        public List<Post> NoTrackingWithIdentityResolution()
-        {
-            using var context = new BloggingContext();
-
-            return context.Posts.AsNoTrackingWithIdentityResolution().Include(p => p.Blog).ToList();
         }
 
         public class BloggingContext : DbContext
