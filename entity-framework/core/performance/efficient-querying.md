@@ -3,7 +3,7 @@ title: Efficient Querying - EF Core
 description: Performance guide for efficient querying using Entity Framework Core
 author: roji
 ms.date: 12/1/2020
-uid: core/miscellaneous/efficient-querying
+uid: core/performance/efficient-querying
 ---
 # Efficient Querying
 
@@ -18,11 +18,11 @@ _ = ctx.Blogs.Where(b => b.Name.StartsWith("A")).ToList(); // Uses an index defi
 _ = ctx.Blogs.Where(b => b.Name.EndsWith("B")).ToList(); // Does not use the index
 ```
 
-The main way the spot indexing issues is to first pinpoint a slow query, and then examine its query plan via your database's favorite tool; see the [performance diagnosis](xref:core/miscellaneous/performance-diagnosis) page for more information on how to do that. The query plan displays whether the query traverses the entire table, or uses an index.
+The main way the spot indexing issues is to first pinpoint a slow query, and then examine its query plan via your database's favorite tool; see the [performance diagnosis](xref:core/performance/performance-diagnosis) page for more information on how to do that. The query plan displays whether the query traverses the entire table, or uses an index.
 
 As a general rule, there isn't any special EF knowledge to using indexes or diagnosing performance issues related to them; general database knowledge related to indexes is just as relevant to EF applications as to applications not using EF. The following lists some general guidelines to keep in mind when using indexes:
 
-* While indexes speed up queries, they also slow down updates since they need to be kept up-to-date. Avoid defining indexes which aren't needed, and consider using [index filters](core/modeling/indexes#index-filter) to limit the index to a subset of the rows, thereby reducing this overhead.
+* While indexes speed up queries, they also slow down updates since they need to be kept up-to-date. Avoid defining indexes which aren't needed, and consider using [index filters](xref:core/modeling/indexes#index-filter) to limit the index to a subset of the rows, thereby reducing this overhead.
 * Composite indexes can speed up queries which filter on multiple columns, but they can also speed up queries which don't filter on all the index's columns - depending on ordering. For example, an index on columns A and B speed up queries filtering by A and B, as well as queries filtering only by A, but it does not speed up queries filtering over only by B.
 * If a query filters by an expression over a column (e.g. `price / 2`), a simple index cannot be used. However, you can define a [stored persisted column](xref:core/modeling/generated-properties#computed-columns) for your expression, and create an index over that. Some database also support expression indexes, which can be directly used to speed up queries filtering by any expression.
 * Different databases allow indexes to be configured in various ways, and in many cases EF Core providers expose these via the Fluent API. For example, the SQL Server provider allows you to configure whether an index is [clustered](xref:core/providers/sql-server/indexes#clustering), or set its [fill factor](xref:core/providers/sql-server/indexes#fill-factor). Consult your provider's documentation for more information.
@@ -158,7 +158,7 @@ info: Microsoft.EntityFrameworkCore.Database.Command[20101]
 
 What's going on here? Why are all these queries being sent for the simple loops above? With lazy loading, a Blog's Posts are only (lazily) loaded when its Posts property is accessed; as a result, each iteration in the inner foreach triggers an additional database query, in its own roundtrip. As a result, after the initial query loading all the blogs, we then have another query *per blog*, loading all its posts; this is sometimes called the *N+1* problem, and it can cause very significant performance issues.
 
-Assuming we're going to need all of the blogs' posts, it makes sense to use eager loading here instead. We can use the [Include](xref:core/querying/related-data/eager#eager-loading) operator to perform the loading, but since we only need the Blogs' URLs (and we should only [load what's needed](xref:core/miscellaneous/writing-efficient-queries#select-only-properties-you-need)). So we'll use a projection instead:
+Assuming we're going to need all of the blogs' posts, it makes sense to use eager loading here instead. We can use the [Include](xref:core/querying/related-data/eager#eager-loading) operator to perform the loading, but since we only need the Blogs' URLs (and we should only [load what's needed](xref:core/performance/efficient-updating#project-only-properties-you-need)). So we'll use a projection instead:
 
 ```csharp
 foreach (var blog in ctx.Blogs.Select(b => new { b.Url, b.Posts }).ToList())
@@ -170,7 +170,7 @@ foreach (var blog in ctx.Blogs.Select(b => new { b.Url, b.Posts }).ToList())
 }
 ```
 
-This will make EF Core fetch all the Blogs - along with their Posts - in a single query. In some cases, it may also be useful to avoid cartesian explosion effects by using [split queries]().
+This will make EF Core fetch all the Blogs - along with their Posts - in a single query. In some cases, it may also be useful to avoid cartesian explosion effects by using [split queries](xref:core/querying/single-split-queries).
 
 > [!WARNING]
 > Because lazy loading makes it extremely easy to inadvertently trigger the N+1 problem, it is recommended to avoid it. Eager or explicit loading make it very clear in the source code when a database roundtrip occurs.
@@ -220,7 +220,7 @@ It's recommended to read [the dedicated page on tracking and no-tracking](xref:c
 EF tracks entity instances by default, so that changes on them are detected and persisted when <xref:Microsoft.EntityFrameworkCore.DbContext.SaveChanges%2A> is called. Another effect of tracking queries is that EF detects if an instance has already been loaded for your data, and will automatically return that tracked instance rather than returning a new one; this is called *identity resolution*. From a performance perspective, change tracking means the following:
 
 * EF internally maintains a dictionary of tracked instances. When new data is loaded, EF checks the dictionary to see if an instance is already tracked for that entity's key (identity resolution). The dictionary maintenance and lookups take up some time when loading the query's results.
-* Before handing a loaded instance to the application, EF *snapshots* that instance and keeps the snapshot internally. When <xref:Microsoft.EntityFrameworkCore.DbContext.SaveChanges%2A> is called, the application's instance is compared with the snapshot to discover the changes to be persisted. The snapshot takes up more memory, and the snapshotting process itself takes time; it's sometimes possible specify different, possibly more efficient snapshotting behavior via [value comparers](), or to use [change-tracking proxies]() to bypass the snapshotting process altogether (though that comes with its own set of disadvantages).
+* Before handing a loaded instance to the application, EF *snapshots* that instance and keeps the snapshot internally. When <xref:Microsoft.EntityFrameworkCore.DbContext.SaveChanges%2A> is called, the application's instance is compared with the snapshot to discover the changes to be persisted. The snapshot takes up more memory, and the snapshotting process itself takes time; it's sometimes possible to specify different, possibly more efficient snapshotting behavior via [value comparers](xref:core/modeling/value-comparers), or to use change-tracking proxies to bypass the snapshotting process altogether (though that comes with its own set of disadvantages).
 
 In read-only scenarios where changes aren't saved back to the database, the above overheads can be avoided by using [no-tracking queries](xref:core/querying/tracking#no-tracking-queries). However, since no-tracking queries do not perform identity resolution, a database row which is referenced by multiple other loaded rows will be materialized as as different instances, taking up more memory.
 
@@ -233,7 +233,7 @@ Finally, it is possible to perform updates without the overhead of change tracki
 In some cases, more optimized SQL exists for your query, which EF does not generate. This can happen when the SQL construct is an extension specific to your database that's unsupported, or simply because EF does not translate to it yet. In these cases, writing SQL by hand can provide a substantial performance boost, and EF supports several ways to do this.
 
 * Use raw SQL [directly in your query](xref:core/querying/raw-sql), e.g. via <xref:Microsoft.EntityFrameworkCore.RelationalQueryableExtensions.FromSqlRaw%2A>. EF even lets you compose over the raw SQL with regular LINQ queries, allowing you to express only a part of the query in raw SQL. This is a good technique when the raw SQL only needs to be used in a single query in your codebase.
-* Define a [user-defined function]() (UDF), and then call that from your queries. Note that since 5.0, EF allows UDFs to return full resultsets - these are known as table-valued functions (TVFs) - and also allows mapping a `DbSet` to a function, making it look just like just another table.
+* Define a [user-defined function](xref:core/querying/database-functions) (UDF), and then call that from your queries. Note that since 5.0, EF allows UDFs to return full resultsets - these are known as table-valued functions (TVFs) - and also allows mapping a `DbSet` to a function, making it look just like just another table.
 * Define a database view and query from it in your queries. Note that unlike functions, views cannot accept parameters.
 
 > [!NOTE]
@@ -241,9 +241,9 @@ In some cases, more optimized SQL exists for your query, which EF does not gener
 
 ## Asynchronous programming
 
-As a general rule, in order for your application to be scalable, it's important to always use asynchronous APIs rather than synchronous one (e.g. <xref:Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync> rather than <xref:Microsoft.EntityFrameworkCore.DbContext.SaveChanges>). Synchronous APIs block the thread for the duration of database I/O, increasing the need for threads and the number of thread context switches that must occur.
+As a general rule, in order for your application to be scalable, it's important to always use asynchronous APIs rather than synchronous one (e.g. <xref:Microsoft.EntityFrameworkCore.DbContext.SaveChangesAsync%2A> rather than <xref:Microsoft.EntityFrameworkCore.DbContext.SaveChanges%2A>). Synchronous APIs block the thread for the duration of database I/O, increasing the need for threads and the number of thread context switches that must occur.
 
-For more information, see the page on [async programming](core/miscellaneous/async).
+For more information, see the page on [async programming](xref:core/miscellaneous/async).
 
 > [!WARNING]
 > Avoid mixing synchronous and asynchronous code in the same application - it's very easy to inadvertently trigger subtle thread-pool starvation issues.

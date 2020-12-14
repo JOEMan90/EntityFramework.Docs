@@ -3,7 +3,7 @@ title: Performance Diagnosis - EF Core
 description: Diagnosing Entity Framework Core performance and identifying bottlenecks
 author: roji
 ms.date: 12/1/2020
-uid: core/miscellaneous/performance-diagnosis
+uid: core/performance/performance-diagnosis
 ---
 # Performance Diagnosis
 
@@ -13,7 +13,7 @@ This section discusses ways for detecting performance issues in your EF applicat
 
 At the end of the day, EF prepares and executes commands to be executed against your database; with relational database, that means executing SQL statements via the ADO.NET database API. If a certain query is taking too much time (e.g. because an index is missing), this can be seen discovered by inspecting command execution logs and observing how long they actually take.
 
-EF makes it very easy to capture command execution times, via either [simple logging](core/logging-events-diagnostics/simple-logging) or [Microsoft.Extensions.Logging](core/logging-events-diagnostics/extensions-logging):
+EF makes it very easy to capture command execution times, via either [simple logging](xref:core/logging-events-diagnostics/simple-logging) or [Microsoft.Extensions.Logging](xref:core/logging-events-diagnostics/extensions-logging):
 
 ### [Simple logging](#tab/simple-logging)
 
@@ -56,7 +56,7 @@ info: 06/12/2020 09:12:36.117 RelationalEventId.CommandExecuted[20101] (Microsof
       WHERE [b].[Name] = N'foo'
 ```
 
-The above command took 4 milliseconds. If a certain command takes more than expected, you've found a possible culprit for a performance issue, and can now focus on it to understand why it's running slowly. Command logging can also reveal cases where unexpected [database roundtrips](xref:core/miscellaneous/efficient-execution#database-roundtrips) are being made; this would show up as multiple commands where only one is expected.
+The above command took 4 milliseconds. If a certain command takes more than expected, you've found a possible culprit for a performance issue, and can now focus on it to understand why it's running slowly. Command logging can also reveal cases where unexpected database roundtrips are being made; this would show up as multiple commands where only one is expected.
 
 > [!WARNING]
 > Leaving command execution logging enabled in your production environment is usually a bad idea. The logging itself slows down your application, and may quickly create huge log files which can fill up your server's disk. It's recommended to only keep logging on for a short interval of time to gather data - while carefully monitoring your application - or to capture logging data on a pre-production system.
@@ -92,7 +92,7 @@ There are various alternatives to EF's logging feature for capturing command exe
 
 For example, [SQL Server Management Studio](/sql/ssms/download-sql-server-management-studio-ssms) is a powerful client that can connect to your SQL Server  instance and provide valuable management and performance information. It's beyond the scope of this section to go into the details, but two capabilities worth mentioning are the [Activity Monitor](/sql/relational-databases/performance-monitor/open-activity-monitor-sql-server-management-studio), which provides a live dashboard of server activity (including the most expensive queries), and the [Extended Events (XEvent)](/sql/relational-databases/extended-events/quick-start-extended-events-in-sql-server) feature, which allows defining arbitrary data capture sessions which can be tailored to your exact needs. [The SQL Server documentation on monitoring](/sql/relational-databases/performance/monitor-and-tune-for-performance) provides more information on these features, as well as others.
 
-Another approach for capturing performance data is to collect information automatically emitted by either EF or the database driver via the `DiagnosticSource` interface, and then analyze that data or display it on a dashboard. If you are using Azure, then [Azure Application Insights](https://docs.microsoft.com/en-us/azure/azure-monitor/learn/tutorial-performance) provides such powerful monitoring out of the box, integrating database performance and query execution times in the analysis of how quickly your web requests are being served. More information on this is available in the [Application Insights performance tutorial](/azure/azure-monitor/learn/tutorial-performance), and in the [Azure SQL analytics page](/azure/azure-monitor/insights/azure-sql).
+Another approach for capturing performance data is to collect information automatically emitted by either EF or the database driver via the `DiagnosticSource` interface, and then analyze that data or display it on a dashboard. If you are using Azure, then [Azure Application Insights](https://docs.microsoft.com/azure/azure-monitor/learn/tutorial-performance) provides such powerful monitoring out of the box, integrating database performance and query execution times in the analysis of how quickly your web requests are being served. More information on this is available in the [Application Insights performance tutorial](/azure/azure-monitor/learn/tutorial-performance), and in the [Azure SQL analytics page](/azure/azure-monitor/insights/azure-sql).
 
 ## Inspecting query execution plans
 
@@ -111,7 +111,7 @@ While the above information is specific to SQL Server, other databases typically
 
 ## Event counters
 
-The above sections focused on how to get information about your commands, and how these commands are executed in the database. In addition to that, EF exposes a set of *event counters* which provide more lower-level information on what's happening inside EF itself, and how your application is using it. These counters can be very useful for diagnosing specific performance issues and performance anomalies, such as [query caching issues](xref:core/miscellaneous/writing-efficient-queries#dynamically-constructed-queries) which cause constant recompilation, undisposed DbContext leaks, and others.
+The above sections focused on how to get information about your commands, and how these commands are executed in the database. In addition to that, EF exposes a set of *event counters* which provide more lower-level information on what's happening inside EF itself, and how your application is using it. These counters can be very useful for diagnosing specific performance issues and performance anomalies, such as [query caching issues](xref:core/performance/advanced-performance-topics#dynamically-constructed-queries) which cause constant recompilation, undisposed DbContext leaks, and others.
 
 See the dedicated page on [EF's event counters](xref:core/logging-events-diagnostics/event-counters) for more information.
 
@@ -120,14 +120,14 @@ See the dedicated page on [EF's event counters](xref:core/logging-events-diagnos
 At the end of the day, you sometimes need to know whether a particular way of writing or executing a query is faster than another. It's important to never assume or speculate the answer, and it's extremely easy to put together a quick benchmark to get the answer. When writing benchmarks, it's strongly recommended to use the well-known [BenchmarkDotNet](https://benchmarkdotnet.org/index.html) library, which handles many pitfalls users encounter when trying to write their own benchmarks: have you performed some warmup iterations? How many iterations does your benchmark actually run, and why? Let's take a look at what a benchmark with EF Core looks like.
 
 > [!TIP]
-> The full benchmark project for the source below is available [here](). You are encouraged to copy it and use it as a template for your own benchmarks.
+> The full benchmark project for the source below is available [here](https://github.com/dotnet/EntityFramework.Docs/tree/master/samples/core/Benchmarks/AverageBlogRanking.cs). You are encouraged to copy it and use it as a template for your own benchmarks.
 
 As a simple benchmark scenario, let's compare the following different methods of calculating the average ranking of all Blogs in our database:
 
 * Load all entities, sum up their individual rankings, and calculate the average.
 * The same as above, only use a non-tracking query. This should be faster, since identity resolution isn't performed, and the entities aren't snapshotted for the purposes of change tracking.
 * Avoid loading the entire Blog entity instances at all, by projecting out the ranking only. The saves us from transferring the other, unneeded columns of the Blog entity type.
-* Calculate the average in the database by making it part of the query. This should be the fastest way, since only the result is transferred back to the client.
+* Calculate the average in the database by making it part of the query. This should be the fastest way, since everything is calculated in the database and only the result is transferred back to the client.
 
 With BenchmarkDotNet, you write the code to be benchmarked as a simple method - just like a unit test - and BenchmarkDotNet automatically runs each method for sufficient number of iterations, reliably measuring how long it takes and how much memory is allocated. Here's the benchmark code:
 

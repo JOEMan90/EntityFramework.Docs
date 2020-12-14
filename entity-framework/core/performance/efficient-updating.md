@@ -3,7 +3,7 @@ title: Efficient Updating - EF Core
 description: Performance guide for efficient updating using Entity Framework Core
 author: roji
 ms.date: 12/1/2020
-uid: core/miscellaneous/efficient-updating
+uid: core/performance/efficient-updating
 ---
 # Efficient Updating
 
@@ -19,7 +19,7 @@ context.Add(new Blog { Name = "Yet another blog"});
 context.SaveChanges();
 ```
 
-The above loads a blog from the database, changes its name, and then adds two new blogs; to apply this, two SQL INSERT statements and one UPDATE statement are sent to the database. Rather than sending them one by one, as Blog instances are added, EF Core tracks these changes internally, and executes them in a single roundtrip when <xref:Microsoft.EntityFrameworkContext.DbContext.SaveChanges> is called.
+The above loads a blog from the database, changes its name, and then adds two new blogs; to apply this, two SQL INSERT statements and one UPDATE statement are sent to the database. Rather than sending them one by one, as Blog instances are added, EF Core tracks these changes internally, and executes them in a single roundtrip when <xref:Microsoft.EntityFrameworkCore.DbContext.SaveChanges%2A> is called.
 
 The number of statements that EF batches in a single roundtrip depends on the database provider being used. For example, performance analysis has shown batching to be generally less efficient for SQL Server when less than 4 statements are involved. Similarly, the benefits of batching degrade after around 40 statements for SQL Server, so EF Core will by default only execute up to 42 statements in a single batch, and execute additional statements in separate roundtrips.
 

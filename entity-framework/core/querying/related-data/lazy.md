@@ -48,7 +48,7 @@ public class Post
 ```
 
 > [!WARNING]
-> Lazy loading can cause unneeded extra database roundtrips to occur (the so-called N+1 problem), and care should be taken to avoid this. See the [performance section](core/miscellaneous/writing-efficient-queries) for more details.
+> Lazy loading can cause unneeded extra database roundtrips to occur (the so-called N+1 problem), and care should be taken to avoid this. See the [performance section](xref:core/performance/efficient-querying#beware-of-lazy-loading) for more details.
 
 ## Lazy loading without proxies
 
